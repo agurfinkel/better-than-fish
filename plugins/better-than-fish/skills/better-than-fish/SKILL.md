@@ -270,6 +270,10 @@ For a new agent in a future session, `sessions.md`'s most recent entry
 is the fastest way to know "what's the state of play here?" — faster
 than reading the most recent journal entry.
 
+In Claude Code, the plugin's hooks re-inject the most recent entry after
+compaction and ask for a new entry after milestone commands (`git push`,
+`git tag`, `gh pr create/merge`, `gh release`). See `references/hooks.md`.
+
 ## Anti-patterns
 
 Things that look reasonable but degrade the system:
@@ -301,8 +305,9 @@ Codex or `CLAUDE.md` for Claude Code) in the notes directory.
 |---|---|---|
 | `BTF_NOTES_DIR` | path to the notes directory | (asks once if unset) |
 | `BTF_DIGEST_DAY` | which weekday to remind about weekly digest | Friday |
+| `BTF_ENFORCE_HANDOFF` | `1`: block stopping until a handoff follows a milestone (Claude Code hooks) | off |
 
-Both are optional. The skill works with no configuration if the user
+All are optional. The skill works with no configuration if the user
 points the agent at the directory once.
 
 ## Files in this skill
@@ -311,6 +316,8 @@ points the agent at the directory once.
 - `references/format.md` — marker conventions, file naming, frontmatter.
 - `references/distillation.md` — promotion criteria and digest examples.
 - `references/corrections.md` — the supersede pattern, "why I was misled".
+- `references/hooks.md` — Claude Code compaction hooks and the
+  `# Compact instructions` snippet.
 - `examples/correction-walkthrough.md` — a worked correction example.
 - `examples/first-week-bootstrap.md` — what notes should exist after
   one week of use.

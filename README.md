@@ -117,10 +117,22 @@ Restart Codex after installing it. Invoke the skill explicitly with
 |---|---|---|
 | `BTF_NOTES_DIR` | path to the notes directory | (asks once if unset) |
 | `BTF_DIGEST_DAY` | weekday to remind about weekly digest | Friday |
+| `BTF_ENFORCE_HANDOFF` | `1`: block stopping until a handoff follows a milestone | off |
 
-Both optional. The skill works with no configuration if the user
+All optional. The skill works with no configuration if the user
 points the agent at the directory once; the agent records the choice in the
 project's `AGENTS.md` (Codex) or `CLAUDE.md` (Claude Code).
+
+## Compaction hooks (Claude Code)
+
+The plugin installs hooks that keep the latest `sessions.md` entry in view
+across compaction: a `PreCompact` hook tells the summarizer to keep pending
+approvals, permissions, branch and commit state, and open tasks; a
+`SessionStart` hook re-injects the latest entry afterwards; a `PostToolUse`
+hook asks for a handoff entry after `git push`, `git tag`, `gh pr
+create/merge`, or `gh release`. They need `python3` and do nothing when no
+notes directory is found. Details and a `# Compact instructions` snippet for
+`CLAUDE.md`: `plugins/better-than-fish/skills/better-than-fish/references/hooks.md`.
 
 ## Bootstrap
 
@@ -143,13 +155,16 @@ better-than-fish/                            ← marketplace root
 ├── LICENSE
 └── plugins/better-than-fish/                ← the plugin
     ├── .claude-plugin/plugin.json
+    ├── hooks/hooks.json                      # compaction hooks
+    ├── scripts/btf_hook.py                   # hook implementation
     └── skills/better-than-fish/
         ├── SKILL.md                          # shared skill instructions
         ├── agents/openai.yaml                # Codex UI metadata
         ├── references/
         │   ├── format.md                     # markers, file naming
         │   ├── distillation.md               # promotion criteria
-        │   └── corrections.md                # supersede pattern
+        │   ├── corrections.md                # supersede pattern
+        │   └── hooks.md                      # compaction hooks
         └── examples/
             ├── correction-walkthrough.md
             └── first-week-bootstrap.md
