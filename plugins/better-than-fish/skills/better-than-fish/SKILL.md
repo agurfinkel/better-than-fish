@@ -188,6 +188,8 @@ At the start of any session involving the project:
 
 1. Read `<notes-dir>/AGENTS.md` or `<notes-dir>/CLAUDE.md` for project
    conventions and triggers. Prefer the host-native file when both exist.
+   Do this as soon as the notes directory is known; in Claude Code the
+   read also records the directory for the compaction hooks.
 2. Skim `durable/` index (filenames + descriptions) to understand the
    landscape.
 3. Read the most recent weekly digest if it exists — it tells you the

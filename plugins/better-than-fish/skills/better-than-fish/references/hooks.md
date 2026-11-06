@@ -5,16 +5,28 @@ The Claude Code plugin ships hooks in `hooks/hooks.json` that keep the
 `scripts/btf_hook.py` (python3, standard library only). Codex does not
 load them.
 
-Every hook first locates the notes directory:
+Every hook first locates the notes directory for the current session:
 
-1. `$BTF_NOTES_DIR`, if set
-2. a `notes at: PATH` line in `CLAUDE.md`, `AGENTS.md`, or `CLAUDE.local.md`
+1. the directory recorded for this session in `${TMPDIR:-/tmp}/btf-<session_id>`.
+   A `PostToolUse` hook records it whenever the agent reads, writes, or
+   edits a file inside a notes directory (the nearest ancestor holding
+   `sessions.md` plus `CLAUDE.md` or `AGENTS.md`), or runs a Bash command
+   naming an absolute path inside one. The latest one touched wins. The
+   file is keyed by session id, so it survives compaction, and each
+   session keeps its own directory.
+2. `$BTF_NOTES_DIR`, if set
+3. a `notes at: PATH` line in `CLAUDE.md`, `AGENTS.md`, or `CLAUDE.local.md`
    in the session's working directory, then in its git root. A relative
    PATH is resolved against the file's directory.
-3. the working directory or git root itself, if it holds `sessions.md`
+4. the working directory or git root itself, if it holds `sessions.md`
    and a `CLAUDE.md` or `AGENTS.md`
 
-If none applies, the hooks print nothing. They always exit 0.
+In practice: point the agent at the notes directory at session start (by
+path, or through the skill). Its first step under "Reading discipline" is
+to read `<notes>/CLAUDE.md` or `<notes>/AGENTS.md`, and that read records
+the directory for the session.
+
+If no directory is found, the hooks print nothing. They always exit 0.
 
 ## What each hook does
 
@@ -22,7 +34,7 @@ If none applies, the hooks print nothing. They always exit 0.
 |---|---|
 | `PreCompact` | Its output becomes instructions for the compaction summary: keep pending approvals with their exact commands, standing constraints and permissions, branch and commit state, open tasks, and the path to the latest `sessions.md` entry. |
 | `SessionStart` (matcher `compact`) | After compaction, adds the last `## ` entry of `sessions.md` (up to 150 lines) to context, with a pointer to the notes `CLAUDE.md`/`AGENTS.md`. Pending approvals in that entry still need the user's explicit word. |
-| `PostToolUse` (`Bash`) | After `git push`, `git tag <name>`, `gh pr create`, `gh pr merge`, or `gh release create/upload/edit/delete`, asks for a `sessions.md` handoff entry unless one was written this turn, and records the time in `${TMPDIR:-/tmp}/btf-<session_id>`. |
+| `PostToolUse` (`Read`, `Write`, `Edit`, `NotebookEdit`, `Bash`) | Records the session's notes directory (see above). After `git push`, `git tag <name>`, `gh pr create`, `gh pr merge`, or `gh release create/upload/edit/delete`, asks for a `sessions.md` handoff entry unless one was written this turn, and records the time in the session file. |
 | `Stop` | Only with `BTF_ENFORCE_HANDOFF=1`: if a milestone ran after the last change to `sessions.md`, blocks the stop with "write the sessions.md handoff". It never blocks twice in a row (`stop_hook_active`). |
 
 The `SessionStart` entry is the last `## ` heading in the file, so
@@ -32,7 +44,7 @@ The `SessionStart` entry is the last `## ` heading in the file, so
 
 | variable | meaning | default |
 |---|---|---|
-| `BTF_NOTES_DIR` | notes directory; overrides the `notes at:` lookup | unset |
+| `BTF_NOTES_DIR` | notes directory when the session has not touched one; overrides the `notes at:` lookup | unset |
 | `BTF_ENFORCE_HANDOFF` | `1` turns on the `Stop` check | unset (off) |
 
 Set them in the shell that starts Claude Code, or in the `env` block of a

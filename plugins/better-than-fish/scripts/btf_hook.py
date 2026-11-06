@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """better-than-fish hooks: keep the sessions.md handoff alive across compaction.
 
-Usage: btf_hook.py session-start | pre-compact | post-bash | stop
+Usage: btf_hook.py session-start | pre-compact | post-tool | stop
+
+The notes directory is recorded per session in ${TMPDIR:-/tmp}/btf-<session_id>
+whenever a Read/Write/Edit (or a Bash command naming a path) touches a file
+inside a notes directory. That file survives compaction.
 
 Reads the hook input JSON on stdin. Never fails the session: every path
 exits 0, and any unexpected error produces no output.
@@ -10,6 +14,7 @@ exits 0, and any unexpected error produces no output.
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -79,7 +84,24 @@ def pointer_in(directory):
     return None
 
 
+def enclosing_notes_dir(path):
+    """Nearest ancestor of path (or path itself) that is a notes dir."""
+    path = os.path.abspath(os.path.expanduser(path))
+    if not os.path.isdir(path):
+        path = os.path.dirname(path)
+    while True:
+        if os.path.isdir(path) and is_notes_dir(path):
+            return path
+        parent = os.path.dirname(path)
+        if parent == path:
+            return None
+        path = parent
+
+
 def find_notes_dir(data):
+    recorded = load_state(data).get("notes")
+    if recorded and os.path.isdir(recorded):
+        return recorded
     env = os.environ.get("BTF_NOTES_DIR")
     if env:
         env = os.path.expanduser(env)
@@ -139,6 +161,25 @@ def state_path(data):
     return os.path.join(tmp, "btf-" + sid)
 
 
+def load_state(data):
+    try:
+        with open(state_path(data), encoding="utf-8") as fh:
+            state = json.load(fh)
+        return state if isinstance(state, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_state(data, **fields):
+    state = load_state(data)
+    state.update(fields)
+    try:
+        with open(state_path(data), "w", encoding="utf-8") as fh:
+            json.dump(state, fh)
+    except OSError:
+        pass
+
+
 def emit(event, context):
     print(json.dumps({
         "hookSpecificOutput": {"hookEventName": event, "additionalContext": context}
@@ -190,7 +231,38 @@ def pre_compact(data):
     )
 
 
-def post_bash(data):
+def touched_paths(data):
+    tool = data.get("tool_name")
+    tin = data.get("tool_input") or {}
+    if tool in ("Read", "Write", "Edit", "NotebookEdit"):
+        p = tin.get("file_path") or tin.get("notebook_path")
+        return [p] if p else []
+    if tool == "Bash":
+        try:
+            words = shlex.split(tin.get("command") or "")
+        except ValueError:
+            words = (tin.get("command") or "").split()
+        out = []
+        for w in words:
+            for part in w.split("="):
+                if part.startswith(("/", "~/")) and len(out) < 8:
+                    out.append(part)
+        return out
+    return []
+
+
+def record_notes_dir(data):
+    """Remember the notes dir the agent just touched; latest wins."""
+    for path in touched_paths(data):
+        found = enclosing_notes_dir(path)
+        if found:
+            if load_state(data).get("notes") != found:
+                save_state(data, notes=found)
+            return
+
+
+def post_tool(data):
+    record_notes_dir(data)
     if data.get("tool_name") != "Bash":
         return
     command = (data.get("tool_input") or {}).get("command") or ""
@@ -199,12 +271,7 @@ def post_bash(data):
     notes = find_notes_dir(data)
     if not notes:
         return
-    try:
-        with open(state_path(data), "w", encoding="utf-8") as fh:
-            json.dump({"milestone": time.time(), "command": command[:500],
-                       "notes": notes}, fh)
-    except OSError:
-        pass
+    save_state(data, milestone=time.time(), command=command[:500])
     emit(
         "PostToolUse",
         "Milestone command ran. Append a sessions.md handoff entry "
@@ -218,12 +285,10 @@ def stop(data):
         return
     if data.get("stop_hook_active"):
         return
-    try:
-        with open(state_path(data), encoding="utf-8") as fh:
-            state = json.load(fh)
-    except (OSError, ValueError):
+    state = load_state(data)
+    if "milestone" not in state:
         return
-    notes = state.get("notes") or find_notes_dir(data)
+    notes = find_notes_dir(data)
     if not notes:
         return
     sessions = os.path.join(notes, "sessions.md")
@@ -243,7 +308,7 @@ def stop(data):
 HANDLERS = {
     "session-start": session_start,
     "pre-compact": pre_compact,
-    "post-bash": post_bash,
+    "post-tool": post_tool,
     "stop": stop,
 }
 

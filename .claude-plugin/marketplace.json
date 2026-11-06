@@ -12,7 +12,7 @@
       "description": "A skill for technical research and engineering investigations: human directs, agent writes, supersedes, distills, and indexes. Three-tier knowledge base (durable / empirical / journal) with confidence markers and a sessions log.",
       "source": "./plugins/better-than-fish",
       "category": "productivity",
-      "homepage": "https://github.com/arie/better-than-fish"
+      "homepage": "https://github.com/agurfinkel/better-than-fish"
     }
   ]
 }

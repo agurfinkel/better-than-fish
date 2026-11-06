@@ -59,7 +59,7 @@ marketplace, then install the plugin from it.
 ### From a git remote
 
 ```
-/plugin marketplace add https://github.com/1arie1/better-than-fish
+/plugin marketplace add https://github.com/agurfinkel/better-than-fish
 /plugin install better-than-fish@better-than-fish
 ```
 
@@ -126,13 +126,15 @@ project's `AGENTS.md` (Codex) or `CLAUDE.md` (Claude Code).
 ## Compaction hooks (Claude Code)
 
 The plugin installs hooks that keep the latest `sessions.md` entry in view
-across compaction: a `PreCompact` hook tells the summarizer to keep pending
-approvals, permissions, branch and commit state, and open tasks; a
-`SessionStart` hook re-injects the latest entry afterwards; a `PostToolUse`
-hook asks for a handoff entry after `git push`, `git tag`, `gh pr
-create/merge`, or `gh release`. They need `python3` and do nothing when no
-notes directory is found. Details and a `# Compact instructions` snippet for
-`CLAUDE.md`: `plugins/better-than-fish/skills/better-than-fish/references/hooks.md`.
+across compaction. The notes directory is recorded per session when the
+agent reads a file in it (e.g. its `CLAUDE.md`). A `PreCompact` hook tells
+the summarizer to keep pending approvals, permissions, branch and commit
+state, and open tasks; a `SessionStart` hook re-injects the latest entry
+afterwards; a `PostToolUse` hook asks for a handoff entry after `git
+push`, `git tag`, `gh pr create/merge`, or `gh release`. They need
+`python3` and do nothing when no notes directory is found. Details and a
+`# Compact instructions` snippet for `CLAUDE.md`:
+`plugins/better-than-fish/skills/better-than-fish/references/hooks.md`.
 
 ## Bootstrap
 

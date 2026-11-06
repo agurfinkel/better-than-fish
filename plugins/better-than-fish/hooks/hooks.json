@@ -1,5 +1,5 @@
 {
-  "description": "better-than-fish: re-inject the latest sessions.md handoff after compaction, steer the compaction summary, and prompt for a handoff after milestone commands",
+  "description": "better-than-fish: re-inject the latest sessions.md handoff after compaction, steer the compaction summary, record the session's notes dir when the agent touches it, and prompt for a handoff after milestone commands",
   "hooks": {
     "SessionStart": [
       {
@@ -26,11 +26,11 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Read|Write|Edit|NotebookEdit|Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/btf_hook.py\" post-bash",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/btf_hook.py\" post-tool",
             "timeout": 15
           }
         ]
