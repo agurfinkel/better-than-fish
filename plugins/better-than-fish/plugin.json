@@ -1,0 +1,6 @@
+{
+  "author": "Arie Gurfinkel",
+  "description": "Agent-driven research notebooks. Three-tier knowledge base (durable / empirical / journal), confidence markers, supersede pattern for corrections, sessions log.",
+  "name": "better-than-fish",
+  "version": "0.2.2"
+}

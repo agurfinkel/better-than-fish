@@ -33,9 +33,9 @@ Notes live in a single project directory configured by the user. The agent
 discovers it in this order:
 
 1. `$BTF_NOTES_DIR` env var, if set
-2. An `AGENTS.md` or `CLAUDE.md` in the current project root that says
-   "notes at: PATH". Prefer the host-native file (`AGENTS.md` for Codex,
-   `CLAUDE.md` for Claude Code); honor either when already present.
+2. An `AGENTS.md`, `GEMINI.md`, or `CLAUDE.md` in the current project root that says
+   "notes at: PATH". Prefer the host-native file (`GEMINI.md` or `AGENTS.md` for Antigravity,
+   `AGENTS.md` for Codex, `CLAUDE.md` for Claude Code); honor any when already present.
 3. The agent asks the user once, records the answer in the project's
    host-native instruction file, and uses it from then on
 
@@ -43,7 +43,8 @@ The directory layout is:
 
 ```
 <notes-dir>/
-  AGENTS.md or         <= 80 lines. Project-stable conventions only.
+  GEMINI.md or         <= 80 lines. Project-stable conventions only.
+  AGENTS.md or
   CLAUDE.md
                           No active-investigation content; that lives in
                           journal/. Always loaded.
@@ -155,7 +156,7 @@ The agent acts on these phrases without further confirmation:
 - **"what do we know about X"** — grep notes first, summarize what's there,
   then answer. Don't re-derive what's already written down.
 
-The user may add project-specific triggers in the project's `AGENTS.md` or
+The user may add project-specific triggers in the project's `GEMINI.md`, `AGENTS.md`, or
 `CLAUDE.md`.
 
 ## Proactive writes (without being told)
@@ -186,8 +187,8 @@ The agent commits writes proactively in these situations:
 
 At the start of any session involving the project:
 
-1. Read `<notes-dir>/AGENTS.md` or `<notes-dir>/CLAUDE.md` for project
-   conventions and triggers. Prefer the host-native file when both exist.
+1. Read `<notes-dir>/GEMINI.md`, `<notes-dir>/AGENTS.md`, or `<notes-dir>/CLAUDE.md` for project
+   conventions and triggers. Prefer the host-native file when present.
    Do this as soon as the notes directory is known; in Claude Code the
    read also records the directory for the compaction hooks.
 2. Skim `durable/` index (filenames + descriptions) to understand the
@@ -298,8 +299,8 @@ Things that look reasonable but degrade the system:
 
 For a new project: follow `examples/first-week-bootstrap.md`. The agent
 creates the directory structure, draws conventions from the user's first
-session, and writes a starter host-native instruction file (`AGENTS.md` for
-Codex or `CLAUDE.md` for Claude Code) in the notes directory.
+session, and writes a starter host-native instruction file (`GEMINI.md` or `AGENTS.md` for
+Antigravity, `AGENTS.md` for Codex, or `CLAUDE.md` for Claude Code) in the notes directory.
 
 ## Configuration
 

@@ -1,0 +1,30 @@
+{
+  "better-than-fish": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "python3 ./scripts/btf_hook.py session-start",
+        "timeout": 15
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "run_command|read_file|write_file|edit_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ./scripts/btf_hook.py post-tool",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "python3 ./scripts/btf_hook.py stop",
+        "timeout": 15
+      }
+    ]
+  }
+}

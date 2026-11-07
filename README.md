@@ -1,6 +1,6 @@
 # better-than-fish 🐟
 
-A Claude Code and Codex skill for **agent-driven research notebooks**. The user
+A Claude Code, Codex, and Google Antigravity (`agy`) skill for **agent-driven research notebooks**. The user
 directs; the agent writes, supersedes, distills, and indexes. The
 point is to capture the *delta of understanding* that accumulates
 across a conversation in a form that survives into the next one.
@@ -111,6 +111,22 @@ Restart Codex after installing it. Invoke the skill explicitly with
 `$better-than-fish`, or use one of its trigger phrases such as "note this",
 "park this", "digest weekly", or "what do we know about X?".
 
+### Google Antigravity (`agy`)
+
+Install the full plugin (including the `better-than-fish` skill, `notes-scribe` agent, and hooks) using the `agy` CLI:
+
+```sh
+agy plugin install /path/to/better-than-fish/plugins/better-than-fish
+```
+
+Or install the skill standalone via symlink:
+
+```sh
+mkdir -p ~/.gemini/config/skills
+ln -s /path/to/better-than-fish/plugins/better-than-fish/skills/better-than-fish \
+      ~/.gemini/config/skills/better-than-fish
+```
+
 ## Configuration
 
 | variable | meaning | default |
@@ -121,7 +137,7 @@ Restart Codex after installing it. Invoke the skill explicitly with
 
 All optional. The skill works with no configuration if the user
 points the agent at the directory once; the agent records the choice in the
-project's `AGENTS.md` (Codex) or `CLAUDE.md` (Claude Code).
+project's `GEMINI.md` or `AGENTS.md` (Antigravity), `AGENTS.md` (Codex), or `CLAUDE.md` (Claude Code).
 
 ## Compaction hooks (Claude Code)
 

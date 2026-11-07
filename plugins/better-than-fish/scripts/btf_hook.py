@@ -21,8 +21,8 @@ import time
 
 ENTRY_LINE_CAP = 150
 NOTES_AT = re.compile(r"notes at:\s*`?([^`\s][^`]*?)`?\s*$", re.IGNORECASE)
-POINTER_FILES = ("CLAUDE.md", "AGENTS.md", "CLAUDE.local.md")
-INSTRUCTION_FILES = ("CLAUDE.md", "AGENTS.md")
+POINTER_FILES = ("GEMINI.md", "CLAUDE.md", "AGENTS.md", "CLAUDE.local.md")
+INSTRUCTION_FILES = ("GEMINI.md", "CLAUDE.md", "AGENTS.md")
 
 # Commands that move shared state forward. `git tag` with no arguments or
 # with -l/--list only lists, and `gh release view/list/download` only read,
@@ -42,6 +42,10 @@ def read_input():
         return json.load(sys.stdin)
     except Exception:
         return {}
+
+
+def is_antigravity(data):
+    return "conversationId" in data or "workspacePaths" in data or "transcriptPath" in data
 
 
 def git_root(path):
@@ -106,7 +110,13 @@ def find_notes_dir(data):
     if env:
         env = os.path.expanduser(env)
         return env if os.path.isdir(env) else None
-    cwd = data.get("cwd") or os.getcwd()
+
+    cwd = None
+    if data.get("workspacePaths"):
+        cwd = data["workspacePaths"][0]
+    if not cwd:
+        cwd = data.get("cwd") or os.getcwd()
+
     candidates = [cwd]
     root = git_root(cwd)
     if root and os.path.normpath(root) != os.path.normpath(cwd):
@@ -126,7 +136,7 @@ def instruction_file(notes):
     for name in INSTRUCTION_FILES:
         if os.path.isfile(os.path.join(notes, name)):
             return os.path.join(notes, name)
-    return os.path.join(notes, "CLAUDE.md")
+    return os.path.join(notes, "GEMINI.md")
 
 
 def latest_entry(sessions_path):
@@ -156,7 +166,8 @@ def latest_entry(sessions_path):
 
 
 def state_path(data):
-    sid = re.sub(r"[^A-Za-z0-9_.-]", "_", str(data.get("session_id") or "nosession"))
+    sid = data.get("conversationId") or data.get("session_id") or "nosession"
+    sid = re.sub(r"[^A-Za-z0-9_.-]", "_", str(sid))
     tmp = os.environ.get("TMPDIR") or "/tmp"
     return os.path.join(tmp, "btf-" + sid)
 
@@ -187,16 +198,16 @@ def emit(event, context):
 
 
 def session_start(data):
-    if data.get("source", "compact") != "compact":
-        return
     notes = find_notes_dir(data)
     if not notes:
+        if is_antigravity(data):
+            print(json.dumps({}))
         return
     sessions = os.path.join(notes, "sessions.md")
     heading, entry = latest_entry(sessions)
     conv = instruction_file(notes)
     parts = [
-        "Context was compacted. The better-than-fish notes directory is %s." % notes,
+        "The better-than-fish notes directory is %s." % notes,
         "Project conventions are in %s." % conv,
     ]
     if entry:
@@ -211,7 +222,20 @@ def session_start(data):
             "%s has no `## ` entry yet. Read %s before acting; pending approvals "
             "still require the user's explicit word." % (sessions, conv)
         )
-    emit("SessionStart", "\n".join(parts))
+
+    if is_antigravity(data):
+        print(json.dumps({
+            "injectSteps": [
+                {
+                    "systemMessage": {
+                        "systemMessage": "\n".join(parts)
+                    }
+                }
+            ]
+        }))
+    else:
+        if data.get("source", "compact") == "compact":
+            emit("SessionStart", "\n".join(parts))
 
 
 def pre_compact(data):
@@ -271,6 +295,18 @@ def command_dirs(command):
 
 
 def touched_paths(data):
+    if is_antigravity(data):
+        tool_call = data.get("toolCall") or {}
+        tool_name = tool_call.get("name") or ""
+        args = tool_call.get("args") or {}
+        if tool_name in ("run_command", "bash"):
+            cmd = args.get("CommandLine") or args.get("command") or ""
+            return command_dirs(cmd)
+        if tool_name in ("read_file", "write_file", "edit_file"):
+            p = args.get("Path") or args.get("path") or ""
+            return [p] if p else []
+        return []
+
     tool = data.get("tool_name")
     tin = data.get("tool_input") or {}
     if tool in ("Read", "Write", "Edit", "NotebookEdit"):
@@ -302,26 +338,34 @@ def record_notes_dir(data):
 
 def post_tool(data):
     record_notes_dir(data)
-    if data.get("tool_name") != "Bash":
-        return
-    command = (data.get("tool_input") or {}).get("command") or ""
-    if not MILESTONE.search(strip_heredocs(command)):
-        return
-    notes = find_notes_dir(data)
-    if not notes:
-        return
-    # Pushing the notebook itself is how a handoff is saved, not a milestone
-    # that needs one.
-    where = command_dirs(command) or [data.get("cwd") or os.getcwd()]
-    if any(inside(d, notes) for d in where):
-        return
-    save_state(data, milestone=time.time(), command=command[:500])
-    emit(
-        "PostToolUse",
-        "Milestone command ran. Append a sessions.md handoff entry "
-        "(better-than-fish format) to %s before continuing, unless one was "
-        "written this turn." % os.path.join(notes, "sessions.md"),
-    )
+    command = ""
+    if is_antigravity(data):
+        tool_call = data.get("toolCall") or {}
+        tool_name = tool_call.get("name") or ""
+        args = tool_call.get("args") or {}
+        if tool_name in ("run_command", "bash"):
+            command = args.get("CommandLine") or args.get("command") or ""
+    else:
+        if data.get("tool_name") == "Bash":
+            command = (data.get("tool_input") or {}).get("command") or ""
+
+    if command and MILESTONE.search(strip_heredocs(command)):
+        notes = find_notes_dir(data)
+        if notes:
+            cwd = (data.get("workspacePaths") or [None])[0] or data.get("cwd") or os.getcwd()
+            where = command_dirs(command) or [cwd]
+            if not any(inside(d, notes) for d in where):
+                save_state(data, milestone=time.time(), command=command[:500])
+                if not is_antigravity(data):
+                    emit(
+                        "PostToolUse",
+                        "Milestone command ran. Append a sessions.md handoff entry "
+                        "(better-than-fish format) to %s before continuing, unless one was "
+                        "written this turn." % os.path.join(notes, "sessions.md"),
+                    )
+
+    if is_antigravity(data):
+        print(json.dumps({}))
 
 
 def stop(data):
@@ -342,11 +386,20 @@ def stop(data):
         mtime = 0.0
     if float(state.get("milestone", 0)) <= mtime:
         return
-    print(json.dumps({
-        "decision": "block",
-        "reason": "write the sessions.md handoff (%s): a milestone command ran "
-                  "after its last update: %s" % (sessions, state.get("command", "")[:200]),
-    }))
+
+    reason = ("write the sessions.md handoff (%s): a milestone command ran "
+              "after its last update: %s" % (sessions, state.get("command", "")[:200]))
+
+    if is_antigravity(data):
+        print(json.dumps({
+            "decision": "continue",
+            "reason": reason
+        }))
+    else:
+        print(json.dumps({
+            "decision": "block",
+            "reason": reason
+        }))
 
 
 HANDLERS = {
