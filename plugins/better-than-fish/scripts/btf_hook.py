@@ -231,6 +231,45 @@ def pre_compact(data):
     )
 
 
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][\w-]*)\1")
+CD_OR_C = re.compile(
+    r"""(?x)
+    (?:^|[;&|(]|&&|\|\|)\s*cd\s+(?P<cd>"[^"]+"|'[^']+'|[^\s;&|)]+)
+    | \bgit\s+-C\s+(?P<gc>"[^"]+"|'[^']+'|[^\s;&|)]+)
+    | (?:^|[;&|(]|&&|\|\|)\s*(?:cat|head|tail|less)\s+(?:-\S+\s+)*(?P<rd>"[^"]+"|'[^']+'|[^\s;&|)]+)
+    """
+)
+
+
+def strip_heredocs(command):
+    """Drop here-document bodies: they are file contents or input data,
+    not paths the command works in (nor commands it runs)."""
+    out, end = [], None
+    for line in command.splitlines():
+        if end is not None:
+            if line.strip() == end:
+                end = None
+            continue
+        out.append(line)
+        m = HEREDOC.search(line)
+        if m:
+            end = m.group(2)
+    return "\n".join(out)
+
+
+def command_dirs(command):
+    """Paths a shell command works in: `cd DIR`, `git -C DIR`, and the first
+    file read by cat/head/tail/less.
+    Other absolute paths in a command (arguments, strings, file contents)
+    are not evidence of which notebook the session uses."""
+    dirs = []
+    for m in CD_OR_C.finditer(strip_heredocs(command)):
+        d = (m.group("cd") or m.group("gc") or m.group("rd")).strip("'\"")
+        if d.startswith(("/", "~/")):
+            dirs.append(os.path.expanduser(d))
+    return dirs[:8]
+
+
 def touched_paths(data):
     tool = data.get("tool_name")
     tin = data.get("tool_input") or {}
@@ -238,17 +277,17 @@ def touched_paths(data):
         p = tin.get("file_path") or tin.get("notebook_path")
         return [p] if p else []
     if tool == "Bash":
-        try:
-            words = shlex.split(tin.get("command") or "")
-        except ValueError:
-            words = (tin.get("command") or "").split()
-        out = []
-        for w in words:
-            for part in w.split("="):
-                if part.startswith(("/", "~/")) and len(out) < 8:
-                    out.append(part)
-        return out
+        return command_dirs(tin.get("command") or "")
     return []
+
+
+def inside(path, directory):
+    try:
+        p = os.path.realpath(path)
+        d = os.path.realpath(directory)
+    except Exception:
+        return False
+    return p == d or p.startswith(d.rstrip(os.sep) + os.sep)
 
 
 def record_notes_dir(data):
@@ -266,10 +305,15 @@ def post_tool(data):
     if data.get("tool_name") != "Bash":
         return
     command = (data.get("tool_input") or {}).get("command") or ""
-    if not MILESTONE.search(command):
+    if not MILESTONE.search(strip_heredocs(command)):
         return
     notes = find_notes_dir(data)
     if not notes:
+        return
+    # Pushing the notebook itself is how a handoff is saved, not a milestone
+    # that needs one.
+    where = command_dirs(command) or [data.get("cwd") or os.getcwd()]
+    if any(inside(d, notes) for d in where):
         return
     save_state(data, milestone=time.time(), command=command[:500])
     emit(

@@ -11,7 +11,9 @@ Every hook first locates the notes directory for the current session:
    A `PostToolUse` hook records it whenever the agent reads, writes, or
    edits a file inside a notes directory (the nearest ancestor holding
    `sessions.md` plus `CLAUDE.md` or `AGENTS.md`), or runs a Bash command
-   naming an absolute path inside one. The latest one touched wins. The
+   that works there: `cd DIR`, `git -C DIR`, or `cat`/`head`/`tail`/`less`
+   of a file in it. Other paths in a command (arguments, strings,
+   here-document bodies) do not count. The latest one touched wins. The
    file is keyed by session id, so it survives compaction, and each
    session keeps its own directory.
 2. `$BTF_NOTES_DIR`, if set
@@ -34,7 +36,7 @@ If no directory is found, the hooks print nothing. They always exit 0.
 |---|---|
 | `PreCompact` | Its output becomes instructions for the compaction summary: keep pending approvals with their exact commands, standing constraints and permissions, branch and commit state, open tasks, and the path to the latest `sessions.md` entry. |
 | `SessionStart` (matcher `compact`) | After compaction, adds the last `## ` entry of `sessions.md` (up to 150 lines) to context, with a pointer to the notes `CLAUDE.md`/`AGENTS.md`. Pending approvals in that entry still need the user's explicit word. |
-| `PostToolUse` (`Read`, `Write`, `Edit`, `NotebookEdit`, `Bash`) | Records the session's notes directory (see above). After `git push`, `git tag <name>`, `gh pr create`, `gh pr merge`, or `gh release create/upload/edit/delete`, asks for a `sessions.md` handoff entry unless one was written this turn, and records the time in the session file. |
+| `PostToolUse` (`Read`, `Write`, `Edit`, `NotebookEdit`, `Bash`) | Records the session's notes directory (see above). After `git push`, `git tag <name>`, `gh pr create`, `gh pr merge`, or `gh release create/upload/edit/delete`, asks for a `sessions.md` handoff entry unless one was written this turn, and records the time in the session file. Pushes made in the notes directory itself (the handoff being saved) and text inside here-documents are not milestones. |
 | `Stop` | Only with `BTF_ENFORCE_HANDOFF=1`: if a milestone ran after the last change to `sessions.md`, blocks the stop with "write the sessions.md handoff". It never blocks twice in a row (`stop_hook_active`). |
 
 The `SessionStart` entry is the last `## ` heading in the file, so
