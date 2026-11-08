@@ -25,12 +25,18 @@ POINTER_FILES = ("CLAUDE.md", "AGENTS.md", "CLAUDE.local.md")
 INSTRUCTION_FILES = ("CLAUDE.md", "AGENTS.md")
 
 # Commands that move shared state forward. `git tag` with no arguments or
-# with -l/--list only lists, and `gh release view/list/download` only read,
-# so those are not milestones.
+# with a listing/query option (-l, --contains, --points-at, -v, ...) only
+# reads, and `gh release view/list/download` only read, so those are not
+# milestones.
+TAG_QUERY = (
+    r"-l\b|--list\b|-n\d*\b|-v\b|--verify\b|--contains\b|--no-contains\b"
+    r"|--merged\b|--no-merged\b|--points-at\b|--sort\b|--format\b"
+    r"|--column\b|--no-column\b|-i\b|--ignore-case\b"
+)
 MILESTONE = re.compile(
     r"""(?x)
     \bgit\b(?:\s+-[Cc]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*\s+
-        (?:push\b|tag\s+(?!-l\b|--list\b|-n\b)[^\s;&|])
+        (?:push\b|tag\s+(?!(?:%s))[^\s;&|])""" % TAG_QUERY + r"""
     | \bgh\s+pr\s+(?:create|merge)\b
     | \bgh\s+release\s+(?:create|upload|edit|delete)\b
     """

@@ -1,7 +1,7 @@
 {
   "name": "better-than-fish",
   "description": "Agent-driven research notebooks. Three-tier knowledge base (durable / empirical / journal), confidence markers, supersede pattern for corrections, sessions log.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "author": {
     "name": "Arie Gurfinkel",
     "email": "arie@certora.com"
