@@ -7,16 +7,20 @@ load them.
 
 Every hook first locates the notes directory for the current session:
 
-1. the directory recorded for this session in `${TMPDIR:-/tmp}/btf-<session_id>`.
+1. `$BTF_NOTES_DIR`, if set (an explicit choice beats inference)
+2. the directory recorded for this session in `${TMPDIR:-/tmp}/btf-<session_id>`.
    A `PostToolUse` hook records it whenever the agent reads, writes, or
    edits a file inside a notes directory (the nearest ancestor holding
    `sessions.md` plus `CLAUDE.md` or `AGENTS.md`), or runs a Bash command
    that works there: `cd DIR`, `git -C DIR`, or `cat`/`head`/`tail`/`less`
    of a file in it. Other paths in a command (arguments, strings,
-   here-document bodies) do not count. The latest one touched wins. The
+   here-document bodies) do not count. The first notebook touched wins
+   and stays the session's: a later notebook (a reference notebook, another
+   project's notes) is recorded as one of the session's `others`, and
+   tool calls made by subagents are not recorded. Pushes made inside any of
+   these notebooks are not milestones. The
    file is keyed by session id, so it survives compaction, and each
    session keeps its own directory.
-2. `$BTF_NOTES_DIR`, if set
 3. a `notes at: PATH` line in `CLAUDE.md`, `AGENTS.md`, or `CLAUDE.local.md`
    in the session's working directory, then in its git root. A relative
    PATH is resolved against the file's directory.
@@ -46,7 +50,7 @@ The `SessionStart` entry is the last `## ` heading in the file, so
 
 | variable | meaning | default |
 |---|---|---|
-| `BTF_NOTES_DIR` | notes directory when the session has not touched one; overrides the `notes at:` lookup | unset |
+| `BTF_NOTES_DIR` | the notes directory; overrides the recorded one and the `notes at:` lookup | unset |
 | `BTF_ENFORCE_HANDOFF` | `1` turns on the `Stop` check | unset (off) |
 
 Set them in the shell that starts Claude Code, or in the `env` block of a

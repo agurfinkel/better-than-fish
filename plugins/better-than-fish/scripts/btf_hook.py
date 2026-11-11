@@ -4,8 +4,9 @@
 Usage: btf_hook.py session-start | pre-compact | post-tool | stop
 
 The notes directory is recorded per session in ${TMPDIR:-/tmp}/btf-<session_id>
-whenever a Read/Write/Edit (or a Bash command naming a path) touches a file
-inside a notes directory. That file survives compaction.
+the first time a Read/Write/Edit (or a Bash command naming a path) touches a
+file inside a notes directory; later notebooks are kept as `others`, and
+subagent tool calls are not recorded. That file survives compaction.
 
 Reads the hook input JSON on stdin. Never fails the session: every path
 exits 0, and any unexpected error produces no output.
@@ -105,13 +106,13 @@ def enclosing_notes_dir(path):
 
 
 def find_notes_dir(data):
-    recorded = load_state(data).get("notes")
-    if recorded and os.path.isdir(recorded):
-        return recorded
     env = os.environ.get("BTF_NOTES_DIR")
     if env:
         env = os.path.expanduser(env)
         return env if os.path.isdir(env) else None
+    recorded = load_state(data).get("notes")
+    if recorded and os.path.isdir(recorded):
+        return recorded
     cwd = data.get("cwd") or os.getcwd()
     candidates = [cwd]
     root = git_root(cwd)
@@ -297,13 +298,29 @@ def inside(path, directory):
 
 
 def record_notes_dir(data):
-    """Remember the notes dir the agent just touched; latest wins."""
+    """Remember the notes dir the agent touched first; it stays the session's.
+
+    A session often reads or writes a second notebook (a reference notebook,
+    another project's notes, a subagent's errand). Those are recorded under
+    `others` and never replace the first one: switching on the latest touch
+    sent handoffs to whichever notebook a subagent had read last. Tool calls
+    made by subagents (hook input with an agent_id) are not recorded at all.
+    To move a session to another notebook, set BTF_NOTES_DIR."""
+    if data.get("agent_id"):
+        return
     for path in touched_paths(data):
         found = enclosing_notes_dir(path)
-        if found:
-            if load_state(data).get("notes") != found:
-                save_state(data, notes=found)
-            return
+        if not found:
+            continue
+        state = load_state(data)
+        primary = state.get("notes")
+        if not primary or not os.path.isdir(primary):
+            save_state(data, notes=found)
+        elif os.path.normpath(primary) != os.path.normpath(found):
+            others = state.get("others") or []
+            if found not in others:
+                save_state(data, others=others + [found])
+        return
 
 
 def post_tool(data):
@@ -319,7 +336,8 @@ def post_tool(data):
     # Pushing the notebook itself is how a handoff is saved, not a milestone
     # that needs one.
     where = command_dirs(command) or [data.get("cwd") or os.getcwd()]
-    if any(inside(d, notes) for d in where):
+    notebooks = [notes] + (load_state(data).get("others") or [])
+    if any(inside(d, n) for d in where for n in notebooks):
         return
     save_state(data, milestone=time.time(), command=command[:500])
     emit(
